@@ -29,13 +29,20 @@ public class Event
 }
 public class Timeline
 {
-    float now;
+    public float now;
     List<AlignedBox> things;
 
     Dictionary<AlignedBox, Event> schedule;
 
     Event nextEvent;
 
+    public void addThing(AlignedBox thing)
+    {
+        things.Add(thing);
+        schedule[thing] = null;
+        generateEventsForThing(thing);
+    }
+    
     void generateEventsForThing(AlignedBox thing)
     {
         if (nextEvent.a == thing || nextEvent.b == thing)
@@ -45,16 +52,33 @@ public class Timeline
         foreach (AlignedBox otherThing in things)
         {
             // invalidate any currently expected events between these things
+            if (schedule[thing] is not null)
+            {
+                if (schedule[thing].a == otherThing || schedule[thing].b == otherThing)
+                {
+                    schedule[thing] = null;
+                }
+            }
+            if (schedule[otherThing] is not null)
+            {
+                if (schedule[otherThing].a == thing || schedule[otherThing].b == thing)
+                {
+                    schedule[otherThing] = null;
+                }
+            }
+
+
+            // check for a new event
             Event newEvent = thing.nextCollisionWith(otherThing);
             if (newEvent is null)
             {
                 continue;
             }
-            if ((newEvent is null) || (newEvent.time < schedule[thing].time))
+            if ((schedule[thing] is null) || (newEvent.time < schedule[thing].time))
             {
                 schedule[thing] = newEvent;
             }
-            if ((newEvent is null) || (newEvent.time < schedule[otherThing].time))
+            if ((schedule[thing] is null) || (newEvent.time < schedule[otherThing].time))
             {
                 schedule[otherThing] = newEvent;
             }
@@ -114,21 +138,21 @@ public partial class AlignedBox
         return new Vector2(m, p);
     }
 
-    public Event nextCollisionWith(AlignedBox other)
+    public Event nextCollisionWith(AlignedBox that)
     {
         // find x axis intersections
-        float ax = 0.5f * (this.acceleration.X - other.acceleration.X);
-        float vx = this.velocity.X - other.velocity.X;
-        float lx = (this.startPosition.X - this.size.X / 2) - (other.startPosition.X + other.size.X / 2);
-        float rx = (this.startPosition.X + this.size.X / 2) - (other.startPosition.X - other.size.X / 2);
+        float ax = 0.5f * (this.acceleration.X - that.acceleration.X);
+        float vx = this.velocity.X - that.velocity.X;
+        float lx = (this.startPosition.X - this.size.X / 2) - (that.startPosition.X + that.size.X / 2);
+        float rx = (this.startPosition.X + this.size.X / 2) - (that.startPosition.X - that.size.X / 2);
         Vector2 leftSols = quadraticEquation(ax, vx, lx);
         Vector2 rightSols = quadraticEquation(ax, vx, rx);
 
 
-        float ay = 0.5f * (this.acceleration.Y - other.acceleration.Y);
-        float vy = this.velocity.Y - other.velocity.Y;
-        float ly = (this.startPosition.Y - this.size.Y / 2) - (other.startPosition.Y + other.size.Y / 2);
-        float ry = (this.startPosition.Y + this.size.Y / 2) - (other.startPosition.Y - other.size.Y / 2);
+        float ay = 0.5f * (this.acceleration.Y - that.acceleration.Y);
+        float vy = this.velocity.Y - that.velocity.Y;
+        float ly = (this.startPosition.Y - this.size.Y / 2) - (that.startPosition.Y + that.size.Y / 2);
+        float ry = (this.startPosition.Y + this.size.Y / 2) - (that.startPosition.Y - that.size.Y / 2);
         Vector2 botSols = quadraticEquation(ay, vy, ly);
         Vector2 topSols = quadraticEquation(ay, vy, ry);
 
@@ -142,10 +166,31 @@ public partial class AlignedBox
             botSols.Y,
             topSols.Y,
         };
+        Event detectedEvent = null;
         foreach (float sol in allSols)
         {
+            if (sol < startTime || sol < that.startTime)
+            {
+                // this part of the timeline isn't valid
+                continue;
+            }
+            if (detectedEvent is not null && detectedEvent.time < sol)
+            {
+                // we already found an earlier event
+                continue;
+            }
+            float tolerance = 0.000000001f;
+            Rect2 thisRect = new Rect2(positionAtTime(sol), size);
+            Rect2 thatRect = new Rect2(that.positionAtTime(sol), that.size);
+            thisRect.Grow(tolerance);
+            thatRect.Grow(tolerance);
 
+            if (thisRect.Intersects(thatRect))
+            {
+                detectedEvent = new Event { a=this, b=that, time=sol };
+            }
+            
         }
-        return null;
+        return detectedEvent;
     }
 }
