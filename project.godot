@@ -11,7 +11,8 @@ config_version=5
 [application]
 
 config/name="OpenSmash"
-config/features=PackedStringArray("4.5")
+run/main_scene="uid://4afq5gehut7u"
+config/features=PackedStringArray("4.5", "C#")
 config/icon="res://icon.svg"
 
 [dotnet]
